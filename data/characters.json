@@ -1,116 +1,21 @@
 {
   "levels": [
-    { "id": "L1", "name": "Level 1", "description": "Nature & people" },
-    { "id": "L2", "name": "Level 2", "description": "Everyday things" }
+    {"id": "G1", "name": "Grade 1"},
+    {"id": "G2", "name": "Grade 2"}
   ],
   "characters": [
-    {
-      "char": "人", "level": "L1", "pinyin": "rén", "meaning": "person",
-      "words": [
-        { "word": "大人", "pinyin": "dàrén", "meaning": "adult" },
-        { "word": "好人", "pinyin": "hǎorén", "meaning": "good person" },
-        { "word": "人们", "pinyin": "rénmen", "meaning": "people" }
-      ],
-      "sentence": { "text": "公园里有很多人。", "pinyin": "Gōngyuán lǐ yǒu hěn duō rén.", "meaning": "There are many people in the park." }
-    },
-    {
-      "char": "大", "level": "L1", "pinyin": "dà", "meaning": "big",
-      "words": [
-        { "word": "大家", "pinyin": "dàjiā", "meaning": "everyone" },
-        { "word": "大小", "pinyin": "dàxiǎo", "meaning": "size" },
-        { "word": "长大", "pinyin": "zhǎngdà", "meaning": "to grow up" }
-      ],
-      "sentence": { "text": "我家有一只大狗。", "pinyin": "Wǒ jiā yǒu yì zhī dà gǒu.", "meaning": "My family has a big dog." }
-    },
-    {
-      "char": "小", "level": "L1", "pinyin": "xiǎo", "meaning": "small",
-      "words": [
-        { "word": "小鸟", "pinyin": "xiǎoniǎo", "meaning": "little bird" },
-        { "word": "小心", "pinyin": "xiǎoxīn", "meaning": "careful" },
-        { "word": "小朋友", "pinyin": "xiǎopéngyou", "meaning": "child" }
-      ],
-      "sentence": { "text": "过马路要小心。", "pinyin": "Guò mǎlù yào xiǎoxīn.", "meaning": "Be careful crossing the street." }
-    },
-    {
-      "char": "山", "level": "L1", "pinyin": "shān", "meaning": "mountain",
-      "words": [
-        { "word": "爬山", "pinyin": "páshān", "meaning": "to climb a mountain" },
-        { "word": "火山", "pinyin": "huǒshān", "meaning": "volcano" },
-        { "word": "山上", "pinyin": "shānshang", "meaning": "on the mountain" }
-      ],
-      "sentence": { "text": "周末我们去爬山。", "pinyin": "Zhōumò wǒmen qù páshān.", "meaning": "We go hiking on the weekend." }
-    },
-    {
-      "char": "水", "level": "L1", "pinyin": "shuǐ", "meaning": "water",
-      "words": [
-        { "word": "喝水", "pinyin": "hē shuǐ", "meaning": "to drink water" },
-        { "word": "水果", "pinyin": "shuǐguǒ", "meaning": "fruit" },
-        { "word": "雨水", "pinyin": "yǔshuǐ", "meaning": "rainwater" }
-      ],
-      "sentence": { "text": "我每天都喝很多水。", "pinyin": "Wǒ měitiān dōu hē hěn duō shuǐ.", "meaning": "I drink a lot of water every day." }
-    },
-    {
-      "char": "日", "level": "L1", "pinyin": "rì", "meaning": "sun; day",
-      "words": [
-        { "word": "生日", "pinyin": "shēngrì", "meaning": "birthday" },
-        { "word": "日记", "pinyin": "rìjì", "meaning": "diary" },
-        { "word": "日出", "pinyin": "rìchū", "meaning": "sunrise" }
-      ],
-      "sentence": { "text": "今天是我的生日。", "pinyin": "Jīntiān shì wǒ de shēngrì.", "meaning": "Today is my birthday." }
-    },
-    {
-      "char": "月", "level": "L2", "pinyin": "yuè", "meaning": "moon; month",
-      "words": [
-        { "word": "月亮", "pinyin": "yuèliang", "meaning": "the moon" },
-        { "word": "一月", "pinyin": "yīyuè", "meaning": "January" },
-        { "word": "月饼", "pinyin": "yuèbing", "meaning": "mooncake" }
-      ],
-      "sentence": { "text": "晚上的月亮又大又圆。", "pinyin": "Wǎnshang de yuèliang yòu dà yòu yuán.", "meaning": "The moon tonight is big and round." }
-    },
-    {
-      "char": "火", "level": "L2", "pinyin": "huǒ", "meaning": "fire",
-      "words": [
-        { "word": "火车", "pinyin": "huǒchē", "meaning": "train" },
-        { "word": "火山", "pinyin": "huǒshān", "meaning": "volcano" },
-        { "word": "大火", "pinyin": "dàhuǒ", "meaning": "big fire" }
-      ],
-      "sentence": { "text": "我们坐火车去北京。", "pinyin": "Wǒmen zuò huǒchē qù Běijīng.", "meaning": "We take the train to Beijing." }
-    },
-    {
-      "char": "木", "level": "L2", "pinyin": "mù", "meaning": "wood; tree",
-      "words": [
-        { "word": "木头", "pinyin": "mùtou", "meaning": "wood" },
-        { "word": "树木", "pinyin": "shùmù", "meaning": "trees" },
-        { "word": "木马", "pinyin": "mùmǎ", "meaning": "rocking horse" }
-      ],
-      "sentence": { "text": "这张桌子是木头做的。", "pinyin": "Zhè zhāng zhuōzi shì mùtou zuò de.", "meaning": "This table is made of wood." }
-    },
-    {
-      "char": "口", "level": "L2", "pinyin": "kǒu", "meaning": "mouth; opening",
-      "words": [
-        { "word": "门口", "pinyin": "ménkǒu", "meaning": "doorway" },
-        { "word": "人口", "pinyin": "rénkǒu", "meaning": "population" },
-        { "word": "口水", "pinyin": "kǒushuǐ", "meaning": "saliva" }
-      ],
-      "sentence": { "text": "妈妈在门口等我。", "pinyin": "Māma zài ménkǒu děng wǒ.", "meaning": "Mom is waiting for me at the door." }
-    },
-    {
-      "char": "天", "level": "L2", "pinyin": "tiān", "meaning": "sky; day",
-      "words": [
-        { "word": "今天", "pinyin": "jīntiān", "meaning": "today" },
-        { "word": "天气", "pinyin": "tiānqì", "meaning": "weather" },
-        { "word": "天空", "pinyin": "tiānkōng", "meaning": "sky" }
-      ],
-      "sentence": { "text": "今天天气很好。", "pinyin": "Jīntiān tiānqì hěn hǎo.", "meaning": "The weather is nice today." }
-    },
-    {
-      "char": "手", "level": "L2", "pinyin": "shǒu", "meaning": "hand",
-      "words": [
-        { "word": "洗手", "pinyin": "xǐ shǒu", "meaning": "to wash hands" },
-        { "word": "手机", "pinyin": "shǒujī", "meaning": "mobile phone" },
-        { "word": "小手", "pinyin": "xiǎo shǒu", "meaning": "little hand" }
-      ],
-      "sentence": { "text": "吃饭前要洗手。", "pinyin": "Chī fàn qián yào xǐ shǒu.", "meaning": "Wash your hands before eating." }
-    }
+    {"char": "人", "level": "G1", "pinyin": "rén", "meaning": "person", "words": [{"word": "大人", "pinyin": "dàrén", "meaning": "adult"}, {"word": "好人", "pinyin": "hǎorén", "meaning": "good person"}, {"word": "人们", "pinyin": "rénmen", "meaning": "people"}], "sentence": {"text": "公园里有很多人。", "pinyin": "Gōngyuán lǐ yǒu hěn duō rén.", "meaning": "There are many people in the park."}},
+    {"char": "大", "level": "G1", "pinyin": "dà", "meaning": "big", "words": [{"word": "大家", "pinyin": "dàjiā", "meaning": "everyone"}, {"word": "大小", "pinyin": "dàxiǎo", "meaning": "size"}, {"word": "长大", "pinyin": "zhǎngdà", "meaning": "to grow up"}], "sentence": {"text": "我家有一只大狗。", "pinyin": "Wǒ jiā yǒu yì zhī dà gǒu.", "meaning": "My family has a big dog."}},
+    {"char": "小", "level": "G1", "pinyin": "xiǎo", "meaning": "small", "words": [{"word": "小鸟", "pinyin": "xiǎoniǎo", "meaning": "little bird"}, {"word": "小心", "pinyin": "xiǎoxīn", "meaning": "careful"}, {"word": "小朋友", "pinyin": "xiǎopéngyou", "meaning": "child"}], "sentence": {"text": "过马路要小心。", "pinyin": "Guò mǎlù yào xiǎoxīn.", "meaning": "Be careful crossing the street."}},
+    {"char": "山", "level": "G1", "pinyin": "shān", "meaning": "mountain", "words": [{"word": "爬山", "pinyin": "páshān", "meaning": "to climb a mountain"}, {"word": "火山", "pinyin": "huǒshān", "meaning": "volcano"}, {"word": "山上", "pinyin": "shānshang", "meaning": "on the mountain"}], "sentence": {"text": "周末我们去爬山。", "pinyin": "Zhōumò wǒmen qù páshān.", "meaning": "We go hiking on the weekend."}},
+    {"char": "水", "level": "G1", "pinyin": "shuǐ", "meaning": "water", "words": [{"word": "喝水", "pinyin": "hē shuǐ", "meaning": "to drink water"}, {"word": "水果", "pinyin": "shuǐguǒ", "meaning": "fruit"}, {"word": "雨水", "pinyin": "yǔshuǐ", "meaning": "rainwater"}], "sentence": {"text": "我每天都喝很多水。", "pinyin": "Wǒ měitiān dōu hē hěn duō shuǐ.", "meaning": "I drink a lot of water every day."}},
+    {"char": "日", "level": "G1", "pinyin": "rì", "meaning": "sun; day", "words": [{"word": "生日", "pinyin": "shēngrì", "meaning": "birthday"}, {"word": "日记", "pinyin": "rìjì", "meaning": "diary"}, {"word": "日出", "pinyin": "rìchū", "meaning": "sunrise"}], "sentence": {"text": "今天是我的生日。", "pinyin": "Jīntiān shì wǒ de shēngrì.", "meaning": "Today is my birthday."}},
+    {"char": "月", "level": "G2", "pinyin": "yuè", "meaning": "moon; month", "words": [{"word": "月亮", "pinyin": "yuèliang", "meaning": "the moon"}, {"word": "一月", "pinyin": "yīyuè", "meaning": "January"}, {"word": "月饼", "pinyin": "yuèbing", "meaning": "mooncake"}], "sentence": {"text": "晚上的月亮又大又圆。", "pinyin": "Wǎnshang de yuèliang yòu dà yòu yuán.", "meaning": "The moon tonight is big and round."}},
+    {"char": "火", "level": "G2", "pinyin": "huǒ", "meaning": "fire", "words": [{"word": "火车", "pinyin": "huǒchē", "meaning": "train"}, {"word": "火山", "pinyin": "huǒshān", "meaning": "volcano"}, {"word": "大火", "pinyin": "dàhuǒ", "meaning": "big fire"}], "sentence": {"text": "我们坐火车去北京。", "pinyin": "Wǒmen zuò huǒchē qù Běijīng.", "meaning": "We take the train to Beijing."}},
+    {"char": "木", "level": "G2", "pinyin": "mù", "meaning": "wood; tree", "words": [{"word": "木头", "pinyin": "mùtou", "meaning": "wood"}, {"word": "树木", "pinyin": "shùmù", "meaning": "trees"}, {"word": "木马", "pinyin": "mùmǎ", "meaning": "rocking horse"}], "sentence": {"text": "这张桌子是木头做的。", "pinyin": "Zhè zhāng zhuōzi shì mùtou zuò de.", "meaning": "This table is made of wood."}},
+    {"char": "口", "level": "G2", "pinyin": "kǒu", "meaning": "mouth; opening", "words": [{"word": "门口", "pinyin": "ménkǒu", "meaning": "doorway"}, {"word": "人口", "pinyin": "rénkǒu", "meaning": "population"}, {"word": "口水", "pinyin": "kǒushuǐ", "meaning": "saliva"}], "sentence": {"text": "妈妈在门口等我。", "pinyin": "Māma zài ménkǒu děng wǒ.", "meaning": "Mom is waiting for me at the door."}},
+    {"char": "天", "level": "G2", "pinyin": "tiān", "meaning": "sky; day", "words": [{"word": "今天", "pinyin": "jīntiān", "meaning": "today"}, {"word": "天气", "pinyin": "tiānqì", "meaning": "weather"}, {"word": "天空", "pinyin": "tiānkōng", "meaning": "sky"}], "sentence": {"text": "今天天气很好。", "pinyin": "Jīntiān tiānqì hěn hǎo.", "meaning": "The weather is nice today."}},
+    {"char": "手", "level": "G2", "pinyin": "shǒu", "meaning": "hand", "words": [{"word": "洗手", "pinyin": "xǐ shǒu", "meaning": "to wash hands"}, {"word": "手机", "pinyin": "shǒujī", "meaning": "mobile phone"}, {"word": "小手", "pinyin": "xiǎo shǒu", "meaning": "little hand"}], "sentence": {"text": "吃饭前要洗手。", "pinyin": "Chī fàn qián yào xǐ shǒu.", "meaning": "Wash your hands before eating."}},
+    {"char": "单", "level": "G2", "pinyin": "dān", "meaning": "single; list", "words": [{"word": "单位", "pinyin": "dānwèi", "meaning": "unit; workplace"}, {"word": "单元", "pinyin": "dānyuán", "meaning": "unit (of a textbook)"}], "sentence": {"text": "你的工作单位是哪里？", "pinyin": "Nǐ de gōngzuò dānwèi shì nǎlǐ?", "meaning": "Where do you work?"}}
   ]
 }

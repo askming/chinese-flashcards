@@ -8,7 +8,7 @@ A phone-first flip-card app for reviewing Chinese characters. It's a static site
 
 | Path | What it is |
 |---|---|
-| `index.html` | The three screens: level picker, flashcard, summary |
+| `index.html` | Screens: Home (calendar + streak), Levels → level grid → flashcard, Summary |
 | `styles.css` | Mobile-first styles (safe areas, 3D flip, 米字格 grid) |
 | `app.js` | App logic: loading data, shuffling, flipping, progress, speech |
 | `data/characters.json` | **Your character list.** Edit or replace this file |

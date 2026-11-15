@@ -2,7 +2,7 @@
 
 A phone-first flip-card app for reviewing Chinese characters. It's a static site (no build step) that runs on GitHub Pages and can be installed on an iPhone home screen.
 
-**Flow:** pick a level → characters appear in random order → tap **I know** / **I don't know** → the card flips to show pinyin, meaning, an animated stroke order, example words and a sentence → **Next**. At the end you get a score and can re-drill the characters you missed.
+**Flow:** **Home** shows a practice calendar, streak, daily minutes and characters mastered. **Levels** → pick a grade → see all its characters → 开始练习 → each card shows a character; tap **认识** / **不认识** → the card flips to show pinyin, animated stroke order (笔顺, plus 练写 tracing), 组词 and 造句 → **下一个**. **看全部** returns to the level's character grid. **Summary** shows mastered vs. not mastered per level; tap a bar to practice the ones you haven't mastered. A character counts as *mastered* when your most recent answer was 认识.
 
 ## Project layout
 

@@ -27,8 +27,18 @@
     <!-- Home: greeting, practice calendar, stats -->
     <section id="home" class="screen">
       <p class="hello">Hello!<br><span id="home-date"></span></p>
-      <div id="calendar" class="calendar"></div>
-      <ul id="home-stats" class="home-stats"></ul>
+      <div class="cal-card">
+        <div class="cal-head">
+          <button id="cal-prev-y" class="cal-nav" type="button" aria-label="Previous year">«</button>
+          <button id="cal-prev" class="cal-nav" type="button" aria-label="Previous month">‹</button>
+          <button id="cal-title" class="cal-title" type="button" title="Back to today"></button>
+          <button id="cal-next" class="cal-nav" type="button" aria-label="Next month">›</button>
+          <button id="cal-next-y" class="cal-nav" type="button" aria-label="Next year">»</button>
+        </div>
+        <div id="calendar" class="calendar"></div>
+      </div>
+      <div id="home-stats" class="stats-block"></div>
+      <div id="day-panel" class="day-panel"></div>
       <p id="load-error" class="error" hidden></p>
     </section>
 
@@ -42,7 +52,7 @@
     <section id="detail" class="screen">
       <h2 id="detail-title"></h2>
       <p id="detail-sub" class="sub"></p>
-      <div id="detail-grid" class="char-grid"></div>
+      <div id="detail-grid"></div>
       <div class="legend"><span class="dot mastered"></span>认识 <span class="dot missed"></span>不认识 <span class="dot"></span>还没练</div>
       <button id="btn-start" class="btn btn-blue sticky-bottom" type="button">开始练习</button>
     </section>
@@ -72,7 +82,6 @@
                 <span id="back-pinyin" class="pinyin"></span>
                 <button class="speak-btn" type="button" data-speak-char aria-label="Play pronunciation">🔊</button>
               </div>
-              <div id="back-meaning" class="meaning"></div>
               <div class="writer-row">
                 <div id="writer" class="writer-grid"></div>
                 <div class="writer-btns">
@@ -93,6 +102,7 @@
             </div>
             <div class="back-footer">
               <span id="result-tag" class="result-tag"></span>
+              <button id="btn-prev" class="btn btn-secondary btn-prev" type="button" hidden>‹ 上一个</button>
               <button id="btn-next" class="btn btn-yellow" type="button">下一个</button>
             </div>
           </div>

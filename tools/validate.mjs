@@ -31,9 +31,13 @@ if (!Array.isArray(data.characters)) errors.push(`"characters" must be an array`
     if (!w.word) errors.push(`${at}: a word is missing "word"`);
     else if (!w.word.includes(c.char)) warnings.push(`${at}: word "${w.word}" doesn't contain ${c.char}`);
     if (!w.pinyin) warnings.push(`${at}: word "${w.word}" has no pinyin`);
+    else if (Array.isArray(w.pinyin) && w.pinyin.length !== [...(w.word || "")].length)
+      errors.push(`${at}: word "${w.word}" pinyin has ${w.pinyin.length} syllables for ${[...w.word].length} characters`);
   });
   if (!c.sentence?.text) warnings.push(`${at}: no sentence`);
   else if (!c.sentence.text.includes(c.char)) warnings.push(`${at}: sentence doesn't contain ${c.char}`);
+  if (Array.isArray(c.sentence?.pinyin) && c.sentence.pinyin.length !== [...c.sentence.text].length)
+    errors.push(`${at}: sentence pinyin isn't aligned to its characters`);
 });
 
 if (checkStrokes) {

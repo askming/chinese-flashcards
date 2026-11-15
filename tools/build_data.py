@@ -42,6 +42,22 @@ load_phrases_dict({
 })
 
 ZH = re.compile(r"[㐀-鿿]")
+AUDIO_DIR = os.path.join(ROOT, "audio")
+VOICE, RATE = "zh-CN-XiaoxiaoNeural", "-10%"
+
+
+def audio_file(text):
+    """Deterministic file name for a spoken text (relative to the site root)."""
+    import hashlib
+    h = hashlib.md5(f"{VOICE}|{RATE}|{text}".encode()).hexdigest()[:12]
+    return f"audio/{h}.mp3"
+
+
+def attach_audio(obj, spoken):
+    rel = audio_file(spoken)
+    if os.path.exists(os.path.join(ROOT, rel)):
+        obj["audio"] = rel
+    return rel
 PUNCT_SPACE = re.compile(r"\s+([，。！？、；：”’）》…])")
 
 
@@ -101,28 +117,17 @@ def join_syllables(chars, syl):
     return " ".join(out)
 
 
-def word_pinyin(word, overrides):
-    chars, syl = syllables(word)
-    s = join_syllables(chars, apply_overrides(chars, syl, overrides))
-    return re.sub(r"\s*，\s*", ", ", s)
-
-
-def sentence_pinyin(sent, overrides):
-    chars, syl = syllables(sent)
+def aligned_pinyin(text, overrides):
+    """One entry per character of text: its syllable, or "" for punctuation/non-Chinese.
+    儿化 is kept as a separate "r" over 儿 so every character has its own annotation."""
+    chars, syl = syllables(text)
     syl = apply_overrides(chars, syl, overrides)
-    s = join_syllables(chars, syl)
-    s = s.replace("… …", "……")
-    s = PUNCT_SPACE.sub(r"\1", s)
-    s = re.sub(r"([“‘（《])\s+", r"\1", s)
-    s = s.replace("，", ", ").replace("。", ". ").replace("！", "! ").replace("？", "? ") \
-         .replace("、", ", ").replace("：", ": ").replace("；", "; ")
-    s = s.replace("……", "…")
-    s = re.sub(r"\s+([”’])", r"\1", s)
-    s = re.sub(r"\s+", " ", s).strip()
-    # capitalize the start and the first word of a quotation
-    s = re.sub(r"^([“‘]?)([a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü])", lambda m: m.group(1) + m.group(2).upper(), s)
-    s = re.sub(r"([:.!?] [“‘])([a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü])", lambda m: m.group(1) + m.group(2).upper(), s)
-    return s
+    return [y if ZH.match(c) else "" for c, y in zip(chars, syl)]
+
+
+def readable(text, py):
+    """Pinyin as one line, for the proofreading report."""
+    return join_syllables([c for c in text if ZH.match(c)], [y for c, y in zip(text, py) if ZH.match(c)])
 
 
 def balance_quotes(s):
@@ -184,13 +189,41 @@ def parse_chars(spec):
     return out
 
 
+def char_speech_text(ch, py):
+    """Text to synthesize for a lone character. If its default reading differs from the
+    textbook's (多音字, e.g. 藏 cáng vs zàng), speak a common single-reading homophone."""
+    if strip_tone(lazy_pinyin(ch, style=Style.TONE)[0]) == strip_tone(py) and \
+            lazy_pinyin(ch, style=Style.TONE)[0] == py:
+        return ch
+    from pypinyin import pinyin_dict
+    for code in range(0x4E00, 0x9FA6):
+        c = chr(code)
+        try:
+            b = c.encode("gb2312")
+        except UnicodeEncodeError:
+            continue
+        if not (0xB0 <= b[0] <= 0xD7):       # GB2312 level-1 = the ~3,750 most common characters
+            continue
+        readings = pinyin_dict.pinyin_dict.get(code, "").split(",")
+        if readings == [py]:
+            return c
+    return ch
+
+
+def grade_name(gid):
+    m = re.match(r"G(\d+)$", gid)
+    return f"Grade {m.group(1)}" if m else gid
+
+
 def build(source_paths, report=False):
-    levels, characters, issues = [], [], []
-    for path in source_paths:
-        src = json.load(open(path))
+    grades, levels, characters, issues, speech = {}, [], [], [], {}
+    sources = sorted((json.load(open(p)) for p in source_paths), key=lambda s: (s["grade"], int(s["unit"])))
+    for src in sources:
         overrides = src.get("overrides", {})
-        level_id = f"{src['grade']}-U{src['unit']}"
-        levels.append({"id": level_id, "name": src["name"]})
+        gid = src["grade"]
+        grades.setdefault(gid, {"id": gid, "name": src.get("gradeName") or grade_name(gid)})
+        level_id = f"{gid}-U{src['unit']}"
+        levels.append({"id": level_id, "grade": gid, "name": src["name"].split(" ", 1)[-1]})
         for L in src["lessons"]:
             sentences = split_sentences(L["text"])
             for sub in L["subLessons"]:
@@ -199,40 +232,50 @@ def build(source_paths, report=False):
                         cand = [w for w in sub["readWords"] + L["vocab"] if ch in w and w != ch]
                         words = list(dict.fromkeys(cand))[:MAX_WORDS]
                         sent = pick_sentence(ch, py, words, sentences, overrides)
-                        entry = {
-                            "char": ch, "level": level_id, "pinyin": py,
-                            "words": [{"word": w, "pinyin": word_pinyin(w, overrides)} for w in words],
-                            "lesson": sub["id"], "lessonTitle": L["title"], "kind": kind,
-                        }
+                        entry = {"char": ch, "level": level_id, "pinyin": py, "words": [],
+                                 "lesson": sub["id"], "lessonTitle": L["title"], "kind": kind}
+                        speech[attach_audio(entry, char_speech_text(ch, py))] = char_speech_text(ch, py)
+                        for w in words:
+                            wo = {"word": w, "pinyin": aligned_pinyin(w, overrides)}
+                            spoken = re.sub(r"，", "，", w)
+                            speech[attach_audio(wo, spoken)] = spoken
+                            entry["words"].append(wo)
                         if sent:
-                            entry["sentence"] = {"text": sent, "pinyin": sentence_pinyin(sent, overrides)}
+                            so = {"text": sent, "pinyin": aligned_pinyin(sent, overrides)}
+                            speech[attach_audio(so, sent)] = sent
+                            entry["sentence"] = so
                         characters.append(entry)
                         # Flag words where generated pinyin reads the character differently from the textbook.
-                        for w in words:
-                            wc, ws = syllables(w)
-                            got = apply_overrides(wc, ws, overrides)[wc.index(ch)]
+                        for w in entry["words"]:
+                            got = w["pinyin"][w["word"].index(ch)]
                             if strip_tone(got) != strip_tone(py):
-                                issues.append(f"{ch} ({py}) read as {got} in word {w}")
+                                issues.append(f"{ch} ({py}) read as {got} in word {w['word']}")
                         if not words:
                             issues.append(f"{ch}: no words found")
                         if not sent:
                             issues.append(f"{ch}: no sentence found in lesson text")
 
-    out = {"levels": levels, "characters": characters}
+    out = {"grades": list(grades.values()), "levels": levels, "characters": characters}
     with open(os.path.join(ROOT, "data", "characters.json"), "w") as f:
-        f.write('{\n  "levels": [\n' + ",\n".join("    " + json.dumps(l, ensure_ascii=False) for l in levels))
+        f.write('{\n  "grades": ' + json.dumps(out["grades"], ensure_ascii=False))
+        f.write(',\n  "levels": [\n' + ",\n".join("    " + json.dumps(l, ensure_ascii=False) for l in levels))
         f.write('\n  ],\n  "characters": [\n' + ",\n".join("    " + json.dumps(c, ensure_ascii=False) for c in characters) + "\n  ]\n}\n")
+    # what make_audio.py needs to synthesize
+    with open(os.path.join(ROOT, "audio", "_speech.json"), "w") as f:
+        json.dump(speech, f, ensure_ascii=False, indent=0)
 
-    print(f"{len(characters)} characters in {len(levels)} level(s) → data/characters.json")
+    have = sum(1 for rel in speech if os.path.exists(os.path.join(ROOT, rel)))
+    print(f"{len(characters)} characters in {len(levels)} unit(s), {len(grades)} grade(s) → data/characters.json")
+    print(f"audio: {have}/{len(speech)} clips present" + ("" if have == len(speech) else " — run tools/make_audio.py, then rebuild"))
     for i in issues:
         print("⚠", i)
     if report:
         for c in characters:
             print(f"\n{c['lesson']} {c['kind'][0]} {c['char']} {c['pinyin']}")
-            print("   词:", "  ".join(f"{w['word']} {w['pinyin']}" for w in c["words"]))
+            print("   词:", "  ".join(f"{w['word']} {readable(w['word'], w['pinyin'])}" for w in c["words"]))
             if "sentence" in c:
                 print("   句:", c["sentence"]["text"])
-                print("      ", c["sentence"]["pinyin"])
+                print("      ", readable(c["sentence"]["text"], c["sentence"]["pinyin"]))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION when app files change so phones pick up the update.
-const VERSION = "v3";
+const VERSION = "v4";
 const SHELL = `shell-${VERSION}`;
 const STROKES = "strokes-v1"; // stroke-order data fetched from jsDelivr, kept across versions
 const SHELL_FILES = [
@@ -39,6 +39,9 @@ self.addEventListener("fetch", (e) => {
   }
 
   if (url.origin !== location.origin) return;
+  // Audio clips: leave to the browser (Safari plays media with Range requests,
+  // which cached full responses don't satisfy).
+  if (url.pathname.includes("/audio/")) return;
 
   // Character list: network-first so edits to the JSON show up right away.
   if (url.pathname.endsWith("/data/characters.json")) {

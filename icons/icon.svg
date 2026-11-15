@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="0" fill="#c0392b"/>
+  <rect x="76" y="76" width="360" height="360" rx="28" fill="#fffdf8"/>
+  <g stroke="#ecd3cf" stroke-width="4" stroke-dasharray="14 10">
+    <line x1="256" y1="76" x2="256" y2="436"/><line x1="76" y1="256" x2="436" y2="256"/>
+  </g>
+  <text x="256" y="350" font-size="260" text-anchor="middle" font-family="Kaiti SC, STKaiti, PingFang SC, sans-serif" fill="#222">字</text>
+</svg>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#c0392b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="汉字卡">
+  <title>汉字 Flashcards</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/hanzi-writer.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <!-- Screen 1: choose a level -->
+  <section id="home" class="screen active">
+    <header class="home-header">
+      <h1>汉字 <span>Flashcards</span></h1>
+      <p class="sub">Choose a level to practice</p>
+    </header>
+    <ul id="level-list" class="level-list"></ul>
+    <p id="load-error" class="error" hidden></p>
+    <button id="reset-progress" class="link-btn" type="button">Reset progress</button>
+  </section>
+
+  <!-- Screen 2: the flashcard -->
+  <section id="study" class="screen">
+    <header class="study-header">
+      <button id="quit" class="icon-btn" type="button" aria-label="Back to levels">✕</button>
+      <div class="progress"><div id="progress-bar"></div></div>
+      <span id="progress-text" class="progress-text"></span>
+    </header>
+
+    <div class="card-wrap">
+      <div id="card" class="card">
+        <div class="face front">
+          <div id="front-char" class="big-char"></div>
+          <div class="answer-btns">
+            <button id="btn-unknown" class="btn btn-unknown" type="button">✗ I don't know</button>
+            <button id="btn-known" class="btn btn-known" type="button">✓ I know</button>
+          </div>
+        </div>
+
+        <div class="face back">
+          <div class="back-scroll">
+            <div id="result-tag" class="result-tag"></div>
+            <div class="back-top">
+              <div id="back-char" class="mid-char"></div>
+              <div class="pinyin-block">
+                <div id="back-pinyin" class="pinyin"></div>
+                <div id="back-meaning" class="meaning"></div>
+                <button class="speak-btn" type="button" data-speak-char aria-label="Play pronunciation">🔊</button>
+              </div>
+            </div>
+
+            <h3>Writing 笔顺</h3>
+            <div class="writer-row">
+              <div id="writer" class="writer-grid"></div>
+              <div class="writer-btns">
+                <button id="btn-animate" class="chip" type="button">▶ Stroke order</button>
+                <button id="btn-quiz" class="chip" type="button">✍ Practice</button>
+                <span id="writer-msg" class="writer-msg"></span>
+              </div>
+            </div>
+
+            <h3>Words 词语</h3>
+            <ul id="back-words" class="words"></ul>
+
+            <h3>Sentence 句子</h3>
+            <div id="back-sentence" class="sentence"></div>
+          </div>
+          <button id="btn-next" class="btn btn-next" type="button">Next →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screen 3: session summary -->
+  <section id="summary" class="screen">
+    <h2>Session complete 🎉</h2>
+    <div class="score">
+      <div><strong id="sum-known">0</strong><span>I knew</span></div>
+      <div><strong id="sum-unknown">0</strong><span>To review</span></div>
+    </div>
+    <div id="sum-missed" class="missed-chars"></div>
+    <button id="btn-review-missed" class="btn btn-known" type="button">Review the ones I missed</button>
+    <button id="btn-again" class="btn btn-secondary" type="button">Practice this level again</button>
+    <button id="btn-home" class="btn btn-secondary" type="button">Choose another level</button>
+  </section>
+</body>
+</html>

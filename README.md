@@ -53,6 +53,21 @@ Validate after editing (`--strokes` also checks that stroke data exists for each
 node tools/validate.mjs --strokes
 ```
 
+## Building the data from textbook PDFs (比邻中文 student books)
+
+```sh
+# 1. Extract a unit skeleton (word lists, vocab, lesson texts) from the PDF's text layer
+python3 -I tools/extract_pdf.py "BOOK.pdf" --grade G2 --unit 10 > sources/g2-u10.json
+# 2. Fill in each sub-lesson's "write"/"recognize" characters from the 字词乐园 pages
+#    (they're images), e.g. "write": "忠:zhōng 实:shí 导:dǎo"; fix any text-layer glitches
+# 3. Build data/characters.json from every file in sources/ and proofread the report
+python3 -m venv /tmp/fc-tools/venv && /tmp/fc-tools/venv/bin/pip install pypinyin
+/tmp/fc-tools/venv/bin/python tools/build_data.py --report
+node tools/validate.mjs --strokes
+```
+
+Each unit becomes one level. Character pinyin comes from the textbook. 组词 comes from 读一读 and 本课词语, and 造句 is a sentence from the 课文. Word and sentence pinyin is generated with pypinyin, using tone-sandhi rules and a few readings fixed in code. Per-unit fixes go in the source file's `"overrides"` (`"term": "syllables, one per character"`; use `r` for 儿化, e.g. `"点儿": "diǎn r"`). Extra fields (`lesson`, `lessonTitle`, `kind`: write/recognize) are kept for future filtering.
+
 ## Run locally
 
 ```sh

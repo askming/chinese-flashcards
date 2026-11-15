@@ -41,14 +41,25 @@ if (!Array.isArray(data.characters)) errors.push(`"characters" must be an array`
 });
 
 if (checkStrokes) {
+  // a few requests at a time, with retries: the CDN throttles bursts
   const chars = [...seen.keys()].filter(Boolean);
-  const results = await Promise.all(chars.map(async (ch) => {
-    try {
-      const r = await fetch(`https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0/${encodeURIComponent(ch)}.json`, { method: "HEAD" });
-      return r.ok ? null : ch;
-    } catch { return ch; }
-  }));
-  const missing = results.filter(Boolean);
+  const has = async (ch) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch(`https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0/${encodeURIComponent(ch)}.json`, { method: "HEAD" });
+        if (r.ok) return true;
+        if (r.status === 404) return false;
+      } catch { /* retry */ }
+      await new Promise((res) => setTimeout(res, 500 * (attempt + 1)));
+    }
+    return false;
+  };
+  const missing = [];
+  for (let i = 0; i < chars.length; i += 8) {
+    const batch = chars.slice(i, i + 8);
+    const ok = await Promise.all(batch.map(has));
+    batch.forEach((ch, k) => ok[k] || missing.push(ch));
+  }
   if (missing.length) warnings.push(`No stroke-order data for: ${missing.join(" ")}`);
 }
 

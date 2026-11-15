@@ -37,6 +37,7 @@ load_phrases_dict({
     "舒服": [["shū"], ["fu"]], "麻烦": [["má"], ["fan"]], "觉得": [["jué"], ["de"]],
     "睡觉": [["shuì"], ["jiào"]], "得使用": [["děi"], ["shǐ"], ["yòng"]],
     "倒过来": [["dào"], ["guò"], ["lái"]], "倒影": [["dào"], ["yǐng"]],
+    "月亮": [["yuè"], ["liang"]], "漂亮": [["piào"], ["liang"]], "眼睛": [["yǎn"], ["jing"]], "耳朵": [["ěr"], ["duo"]], "狐狸": [["hú"], ["li"]], "哥哥": [["gē"], ["ge"]], "姐姐": [["jiě"], ["jie"]], "弟弟": [["dì"], ["di"]], "妹妹": [["mèi"], ["mei"]], "奶奶": [["nǎi"], ["nai"]], "爷爷": [["yé"], ["ye"]], "姥姥": [["lǎo"], ["lao"]], "宝宝": [["bǎo"], ["bao"]], "娃娃": [["wá"], ["wa"]], "星星": [["xīng"], ["xing"]], "厉害": [["lì"], ["hai"]], "热闹": [["rè"], ["nao"]], "豆腐": [["dòu"], ["fu"]], "萝卜": [["luó"], ["bo"]], "葡萄": [["pú"], ["tao"]], "名字": [["míng"], ["zi"]], "先生": [["xiān"], ["sheng"]], "姑娘": [["gū"], ["niang"]], "嘴巴": [["zuǐ"], ["ba"]], "尾巴": [["wěi"], ["ba"]], "衣裳": [["yī"], ["shang"]], "窗户": [["chuāng"], ["hu"]], "休息": [["xiū"], ["xi"]], "消息": [["xiāo"], ["xi"]], "故事": [["gù"], ["shi"]], "清楚": [["qīng"], ["chu"]], "暖和": [["nuǎn"], ["huo"]], "聪明": [["cōng"], ["ming"]], "喜欢": [["xǐ"], ["huan"]], "脑袋": [["nǎo"], ["dai"]], "石头": [["shí"], ["tou"]], "木头": [["mù"], ["tou"]], "骨头": [["gǔ"], ["tou"]], "早上": [["zǎo"], ["shang"]], "晚上": [["wǎn"], ["shang"]], "脾气": [["pí"], ["qi"]], "道理": [["dào"], ["li"]], "商量": [["shāng"], ["liang"]], "云彩": [["yún"], ["cai"]], "风筝": [["fēng"], ["zheng"]], "招呼": [["zhāo"], ["hu"]], "收拾": [["shōu"], ["shi"]], "打扮": [["dǎ"], ["ban"]], 
     "呱呱": [["guā"], ["guā"]], "高兴得": [["gāo"], ["xìng"], ["de"]], "长时间": [["cháng"], ["shí"], ["jiān"]],
     "安稳觉": [["ān"], ["wěn"], ["jiào"]], "睡个": [["shuì"], ["gè"]],
 })
@@ -94,7 +95,9 @@ def syllables(text):
             out[i] = "bú"
         # adverbial 地 (…地 + verb) is "de"; leave 地 inside nouns like 地上/陆地/土地 alone
         if c == "地" and i > 0 and ZH.match(chars[i - 1]) and out[i] == "dì":
-            if chars[i - 1] in "奇心真慢快渐气然兴静巧拙乐悄轻重好细" and nxt:
+            starts_noun = i + 1 < len(chars) and chars[i + 1] in "方上下面图球点区址铁板毯位带震质主里头"
+            redup = i > 1 and chars[i - 1] == chars[i - 2]          # 慢慢地 轻轻地 静静地: always adverbial
+            if redup or (chars[i - 1] in "奇心真慢快渐气然兴静巧拙乐悄轻重好细" and not starts_noun):
                 out[i] = "de"
     return chars, out
 
@@ -167,6 +170,14 @@ def strip_tone(s):
     return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn").replace("ü", "v")
 
 
+def reads_differently(got, py, ch):
+    if strip_tone(got) != strip_tone(py):
+        return True
+    # same letters: a toneless reading of a toned character (哪 na vs nǎ) is a different word,
+    # except 一/不 whose tones change by rule
+    return ch not in "一不" and tone_of(got) == 5 and tone_of(py) != 5
+
+
 def pick_sentence(ch, py, words, sentences, overrides):
     best, best_score = None, None
     for s in sentences:
@@ -176,8 +187,8 @@ def pick_sentence(ch, py, words, sentences, overrides):
         if any(w in s for w in words):
             score += 10
         idx = s.index(ch)
-        if strip_tone(char_reading_in(s, idx, overrides)) != strip_tone(py):
-            score -= 20      # character read differently here (多音字)
+        if reads_differently(char_reading_in(s, idx, overrides), py, ch):
+            score -= 20      # character read differently here (多音字, or a neutral-tone particle like 哪 na)
         n = len(ZH.findall(s))
         score -= 0 if 8 <= n <= 28 else (abs(n - 18) / 4)
         if best_score is None or score > best_score or (score == best_score and len(s) < len(best)):
@@ -236,6 +247,8 @@ def build(source_paths, report=False, check=False):
                         cand = [w for w in sub["readWords"] + L["vocab"] if ch in w and w != ch]
                         words = list(dict.fromkeys(cand))[:MAX_WORDS]
                         sent = pick_sentence(ch, py, words, sentences, overrides)
+                        if not sent and ch in L["title"]:
+                            sent = L["title"]      # the character only appears in the lesson title
                         entry = {"char": ch, "level": level_id, "pinyin": py, "words": [],
                                  "lesson": sub["id"], "lessonTitle": L["title"], "kind": kind}
                         speech[attach_audio(entry, char_speech_text(ch, py))] = char_speech_text(ch, py)

@@ -19,14 +19,15 @@
 <body>
   <nav class="topnav">
     <button type="button" data-nav="home">Home</button>
-    <button type="button" data-nav="levels">Levels</button>
-    <button type="button" data-nav="stats">Summary</button>
+    <button type="button" data-nav="levels">Practice</button>
+    <button type="button" data-nav="stats">Progress</button>
   </nav>
 
   <main>
     <!-- Home: greeting, practice calendar, stats -->
     <section id="home" class="screen">
-      <p class="hello">Hello!<br><span id="home-date"></span></p>
+      <h1 class="hello">Welcome! It's time to boost your Chinese!</h1>
+      <p class="hello-date" id="home-date"></p>
       <div class="cal-card">
         <div class="cal-head">
           <button id="cal-prev-y" class="cal-nav" type="button" aria-label="Previous year">«</button>
@@ -126,10 +127,13 @@
 
     <!-- Summary: mastery per level -->
     <section id="stats" class="screen">
-      <h2>Summary</h2>
+      <h2>Progress</h2>
       <p id="stats-total" class="sub"></p>
       <ul id="stats-list" class="stats-list"></ul>
       <p class="sub hint">Tap a bar to practice the characters you haven't mastered yet.</p>
+
+      <h2 class="settings-head">Voice 声音</h2>
+      <ul id="voice-list" class="voice-list"></ul>
       <button id="reset-progress" class="link-btn" type="button">Reset progress</button>
     </section>
   </main>

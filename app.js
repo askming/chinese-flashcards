@@ -9,6 +9,7 @@
 const DATA_URL = "data/characters.json";
 const PROGRESS_KEY = "hanzi-flashcards-progress-v1"; // { 字: {known, unknown, last, at} }
 const ACTIVITY_KEY = "hanzi-flashcards-activity-v1"; // { "2026-11-14": {sec, n, r: {字: 1|0}, lv: [unitId]} }
+const VOICE_KEY = "hanzi-flashcards-voice";              // voice id, or "device"
 const IDLE_CAP_MS = 2 * 60 * 1000; // time on one card beyond this isn't counted as practice
 
 const $ = (id) => document.getElementById(id);
@@ -159,7 +160,7 @@ const go = {
     renderHome(); show("home");
   },
   levels: () => { renderLevels(); show("levels"); },
-  stats: () => { renderStats(); show("stats"); },
+  stats: () => { renderStats(); renderVoices(); show("stats"); },
   detail: (scope) => { renderDetail(scope); show("detail"); },
 };
 
@@ -179,10 +180,16 @@ function stopAudio() {
   player.pause();
   window.speechSynthesis?.cancel();
 }
-function speak(text, src) {
+// The chosen voice: one of DATA.voices (pre-generated clips) or "device" (Web Speech).
+function voiceId() {
+  const v = localStorage.getItem(VOICE_KEY);
+  const ids = (DATA.voices || []).map((x) => x.id);
+  return v === "device" || ids.includes(v) ? v : ids[0] || "device";
+}
+function speak(text, key, voice = voiceId()) {
   stopAudio();
-  if (src) {
-    player.src = src;
+  if (key && voice !== "device") {
+    player.src = `audio/${voice}/${key}.mp3`;
     player.play().catch(() => speakSynth(text));
   } else {
     speakSynth(text);
@@ -491,6 +498,17 @@ function renderStats() {
   }).join("");
 }
 
+function renderVoices() {
+  const cur = voiceId();
+  const opts = [...(DATA.voices || []), { id: "device", name: "Device voice · 本机声音" }];
+  $("voice-list").innerHTML = opts.map((v) => `
+    <li><label class="voice-row">
+      <input type="radio" name="voice" value="${esc(v.id)}" ${v.id === cur ? "checked" : ""}>
+      <span class="voice-name">${esc(v.name)}</span>
+      <button type="button" class="chip" data-sample="${esc(v.id)}">▶ 试听</button>
+    </label></li>`).join("");
+}
+
 /* ---------- wiring ---------- */
 const scopeFrom = (el) => JSON.parse(el.dataset.scope);
 
@@ -550,6 +568,18 @@ function wire() {
     const scope = scopeFrom(b);
     const todo = charsOf(scope).filter((c) => !isMastered(c.char));
     startSession({ type: "list", chars: todo, title: `${titleOf(scope)} · 未掌握` });
+  });
+
+  // Voice settings
+  $("voice-list").addEventListener("change", (e) => {
+    if (e.target.name === "voice") localStorage.setItem(VOICE_KEY, e.target.value);
+  });
+  $("voice-list").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-sample]");
+    if (!b) return;
+    e.preventDefault();
+    const c = DATA.characters.find((x) => x.sentence?.audio) || DATA.characters[0];
+    if (c?.sentence) speak(c.sentence.text, c.sentence.audio, b.dataset.sample);
   });
 
   // Card

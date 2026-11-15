@@ -43,21 +43,25 @@ load_phrases_dict({
 
 ZH = re.compile(r"[㐀-鿿]")
 AUDIO_DIR = os.path.join(ROOT, "audio")
-VOICE, RATE = "zh-CN-XiaoxiaoNeural", "-10%"
+RATE = "-10%"
+# Neural voices offered in the app (first = default). Clips live in audio/<id>/<key>.mp3.
+VOICES = [
+    {"id": "xiaoxiao", "voice": "zh-CN-XiaoxiaoNeural", "name": "晓晓 · 女声"},
+    {"id": "yunxi", "voice": "zh-CN-YunxiNeural", "name": "云希 · 男声"},
+]
 
 
-def audio_file(text):
-    """Deterministic file name for a spoken text (relative to the site root)."""
+def audio_key(text):
+    """Voice-independent clip name for a spoken text."""
     import hashlib
-    h = hashlib.md5(f"{VOICE}|{RATE}|{text}".encode()).hexdigest()[:12]
-    return f"audio/{h}.mp3"
+    return hashlib.md5(f"{RATE}|{text}".encode()).hexdigest()[:12]
 
 
 def attach_audio(obj, spoken):
-    rel = audio_file(spoken)
-    if os.path.exists(os.path.join(ROOT, rel)):
-        obj["audio"] = rel
-    return rel
+    key = audio_key(spoken)
+    if os.path.exists(os.path.join(AUDIO_DIR, VOICES[0]["id"], key + ".mp3")):
+        obj["audio"] = key
+    return key
 PUNCT_SPACE = re.compile(r"\s+([，。！？、；：”’）》…])")
 
 
@@ -215,7 +219,7 @@ def grade_name(gid):
     return f"Grade {m.group(1)}" if m else gid
 
 
-def build(source_paths, report=False):
+def build(source_paths, report=False, check=False):
     grades, levels, characters, issues, speech = {}, [], [], [], {}
     sources = sorted((json.load(open(p)) for p in source_paths), key=lambda s: (s["grade"], int(s["unit"])))
     for src in sources:
@@ -255,21 +259,35 @@ def build(source_paths, report=False):
                         if not sent:
                             issues.append(f"{ch}: no sentence found in lesson text")
 
-    out = {"grades": list(grades.values()), "levels": levels, "characters": characters}
+    out = {"grades": list(grades.values()), "levels": levels, "characters": characters,
+           "voices": [{"id": v["id"], "name": v["name"]} for v in VOICES]}
+    if check:   # proofreading only: write nothing
+        print(f"[check] {len(characters)} characters in {len(levels)} unit(s)")
+        for i in issues:
+            print("⚠", i)
+        if report:
+            print_report(characters)
+        return
     with open(os.path.join(ROOT, "data", "characters.json"), "w") as f:
-        f.write('{\n  "grades": ' + json.dumps(out["grades"], ensure_ascii=False))
+        f.write('{\n  "voices": ' + json.dumps(out["voices"], ensure_ascii=False))
+        f.write(',\n  "grades": ' + json.dumps(out["grades"], ensure_ascii=False))
         f.write(',\n  "levels": [\n' + ",\n".join("    " + json.dumps(l, ensure_ascii=False) for l in levels))
         f.write('\n  ],\n  "characters": [\n' + ",\n".join("    " + json.dumps(c, ensure_ascii=False) for c in characters) + "\n  ]\n}\n")
     # what make_audio.py needs to synthesize
     with open(os.path.join(ROOT, "audio", "_speech.json"), "w") as f:
         json.dump(speech, f, ensure_ascii=False, indent=0)
 
-    have = sum(1 for rel in speech if os.path.exists(os.path.join(ROOT, rel)))
+    have = min(sum(1 for k in speech if os.path.exists(os.path.join(AUDIO_DIR, v["id"], k + ".mp3"))) for v in VOICES)
     print(f"{len(characters)} characters in {len(levels)} unit(s), {len(grades)} grade(s) → data/characters.json")
-    print(f"audio: {have}/{len(speech)} clips present" + ("" if have == len(speech) else " — run tools/make_audio.py, then rebuild"))
+    print(f"audio: {have}/{len(speech)} clips present for every voice" + ("" if have == len(speech) else " — run tools/make_audio.py, then rebuild"))
     for i in issues:
         print("⚠", i)
     if report:
+        print_report(characters)
+
+
+def print_report(characters):
+    if True:
         for c in characters:
             print(f"\n{c['lesson']} {c['kind'][0]} {c['char']} {c['pinyin']}")
             print("   词:", "  ".join(f"{w['word']} {readable(w['word'], w['pinyin'])}" for w in c["words"]))
@@ -282,6 +300,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("sources", nargs="*", help="default: sources/*.json")
     ap.add_argument("--report", action="store_true")
+    ap.add_argument("--check", action="store_true", help="proofread the given sources; write no files")
     a = ap.parse_args()
     paths = a.sources or sorted(glob.glob(os.path.join(ROOT, "sources", "*.json")))
-    build(paths, a.report)
+    build(paths, a.report, a.check)

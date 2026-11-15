@@ -9,7 +9,7 @@
 const DATA_URL = "data/characters.json";
 const PROGRESS_KEY = "hanzi-flashcards-progress-v1"; // { 字: {known, unknown, last, at} }
 const ACTIVITY_KEY = "hanzi-flashcards-activity-v1"; // { "2026-11-14": {sec, n, r: {字: 1|0}, lv: [unitId]} }
-const VOICE_KEY = "hanzi-flashcards-voice";              // voice id, or "device"
+const VOICE_KEY = "hanzi-flashcards-voice";              // id of the chosen neural voice
 const IDLE_CAP_MS = 2 * 60 * 1000; // time on one card beyond this isn't counted as practice
 
 const $ = (id) => document.getElementById(id);
@@ -164,44 +164,33 @@ const go = {
   detail: (scope) => { renderDetail(scope); show("detail"); },
 };
 
-/* ---------- audio: pre-generated neural voice clips, Web Speech as fallback ---------- */
+/* ---------- audio: pre-generated neural voice clips ---------- */
 const player = new Audio();
-let zhVoice = null;
-function pickVoice() {
-  const voices = (window.speechSynthesis?.getVoices() || []).filter((v) => /^zh[-_]CN/i.test(v.lang) || v.lang === "zh");
-  // prefer higher-quality voices if the device has them installed
-  zhVoice = voices.find((v) => /premium|enhanced|增强|高品质/i.test(v.name)) || voices[0] || null;
-}
-if ("speechSynthesis" in window) {
-  pickVoice();
-  speechSynthesis.onvoiceschanged = pickVoice;
-}
+let playToken = 0;
+
 function stopAudio() {
+  playToken++;
   player.pause();
-  window.speechSynthesis?.cancel();
 }
-// The chosen voice: one of DATA.voices (pre-generated clips) or "device" (Web Speech).
+// The chosen voice id (one of DATA.voices).
 function voiceId() {
-  const v = localStorage.getItem(VOICE_KEY);
   const ids = (DATA.voices || []).map((x) => x.id);
-  return v === "device" || ids.includes(v) ? v : ids[0] || "device";
+  const v = localStorage.getItem(VOICE_KEY);
+  return ids.includes(v) ? v : ids[0];
 }
-function speak(text, key, voice = voiceId()) {
+// Play a clip in the chosen voice; if that clip is missing, try the other voices.
+function speak(_text, key, voice = voiceId()) {
   stopAudio();
-  if (key && voice !== "device") {
-    player.src = `audio/${voice}/${key}.mp3`;
-    player.play().catch(() => speakSynth(text));
-  } else {
-    speakSynth(text);
-  }
-}
-function speakSynth(text) {
-  if (!("speechSynthesis" in window) || !text) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "zh-CN";
-  if (zhVoice) u.voice = zhVoice;
-  u.rate = 0.9;
-  speechSynthesis.speak(u);
+  if (!key) return;
+  const order = [voice, ...(DATA.voices || []).map((v) => v.id).filter((id) => id !== voice)];
+  const token = playToken;
+  const tryNext = (i) => {
+    if (i >= order.length || token !== playToken) return;
+    player.onerror = () => tryNext(i + 1);
+    player.src = `audio/${order[i]}/${key}.mp3`;
+    player.play().catch((e) => { if (e.name !== "AbortError") tryNext(i + 1); });
+  };
+  tryNext(0);
 }
 
 /* ---------- Home: calendar, stats, day log ---------- */
@@ -500,7 +489,7 @@ function renderStats() {
 
 function renderVoices() {
   const cur = voiceId();
-  const opts = [...(DATA.voices || []), { id: "device", name: "Device voice · 本机声音" }];
+  const opts = DATA.voices || [];
   $("voice-list").innerHTML = opts.map((v) => `
     <li><label class="voice-row">
       <input type="radio" name="voice" value="${esc(v.id)}" ${v.id === cur ? "checked" : ""}>

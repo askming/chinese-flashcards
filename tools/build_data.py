@@ -60,8 +60,7 @@ def audio_key(text):
 
 def attach_audio(obj, spoken):
     key = audio_key(spoken)
-    if os.path.exists(os.path.join(AUDIO_DIR, VOICES[0]["id"], key + ".mp3")):
-        obj["audio"] = key
+    obj["audio"] = key          # clip name is deterministic; make_audio.py creates the files
     return key
 PUNCT_SPACE = re.compile(r"\s+([，。！？、；：”’）》…])")
 

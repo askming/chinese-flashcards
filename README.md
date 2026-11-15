@@ -53,7 +53,7 @@ Validate after editing (`--strokes` also checks that stroke data exists for each
 node tools/validate.mjs --strokes
 ```
 
-## Building the data from textbook PDFs (比邻中文 student books)
+## Building the data from textbook PDFs
 
 ```sh
 # 1. Extract a unit skeleton (word lists, vocab, lesson texts) from the PDF's text layer

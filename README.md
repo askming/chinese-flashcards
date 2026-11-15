@@ -87,8 +87,18 @@ On a computer you can use the keyboard: **←** don't know, **→** know, **Spac
 
 **Updating:** edits to `characters.json` show up on the next online launch. If you change app code (HTML/CSS/JS), bump `VERSION` in `sw.js` so installed copies refresh.
 
+## Profiles and sync
+
+- **Profiles:** the 👤 chip in the top bar opens *Who's practicing?*. Each profile (name + emoji) has its own progress, calendar and voice. Progress recorded before profiles existed moves into the first profile.
+- **Sync (optional):** profiles can be stored in a **private** GitHub repo, `askming/chinese-flashcards-data`, as `profiles/<id>.json`, so they follow each learner to every device. The browser talks to the GitHub API directly with a **fine-grained personal access token** that can only reach that one repo:
+  1. Go to github.com → Settings → Developer settings → Fine-grained tokens → **Generate new token**.
+  2. Under **Repository access**, choose *Only select repositories* → `chinese-flashcards-data`.
+  3. Under **Permissions → Repository → Contents**, choose *Read and write*.
+  4. Paste the token on the profiles page and tap **Connect**.
+- **Other devices:** tap **Set up another device** to get a link (send it by AirDrop) that connects that device without retyping the token. The link contains the token, so only send it to your own devices.
+- **How it syncs:** after practice, when the app goes to the background, and when it opens. Conflicting edits are merged: per character, the latest answer wins; days are combined. The token is stored only in each device's browser storage. To revoke access, delete the token on GitHub.
+
 ## Notes
 
-- Progress is saved per device in the browser (`localStorage`). It isn't synced across devices.
 - Pronunciation: pre-generated neural-voice clips in `audio/` (Microsoft `zh-CN-XiaoxiaoNeural` via edge-tts; set `VOICE`/`RATE` in `tools/build_data.py`). Tap 🔊, any word, or the sentence. If a clip is missing, the app falls back to the device voice. A lone 多音字 is spoken via a single-reading homophone so it matches the textbook (藏 zàng → 葬).
 - Offline use: once a card has been viewed online, its stroke data is cached.

@@ -1,9 +1,9 @@
 // Offline support. Bump VERSION when app files change so phones pick up the update.
-const VERSION = "v6";
+const VERSION = "v7";
 const SHELL = `shell-${VERSION}`;
 const STROKES = "strokes-v1"; // stroke-order data fetched from jsDelivr, kept across versions
 const SHELL_FILES = [
-  "./", "index.html", "styles.css", "app.js", "manifest.webmanifest",
+  "./", "index.html", "styles.css", "sync.js", "app.js", "manifest.webmanifest",
   "vendor/hanzi-writer.min.js", "data/characters.json",
   "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png",
 ];

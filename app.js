@@ -7,9 +7,16 @@
  * ============================================================ */
 
 const DATA_URL = "data/characters.json";
-const PROGRESS_KEY = "hanzi-flashcards-progress-v1"; // { 字: {known, unknown, last, at} }
-const ACTIVITY_KEY = "hanzi-flashcards-activity-v1"; // { "2026-11-14": {sec, n, r: {字: 1|0}, lv: [unitId]} }
-const VOICE_KEY = "hanzi-flashcards-voice";              // id of the chosen neural voice
+// Each learner profile: {id, name, avatar, voice, metaAt, createdAt, updatedAt, resetAt,
+//   progress: {字: {known, unknown, last, at}},
+//   activity: {"2026-11-14": {sec, n, t, r: {字: 1|0}, lv: [unitId]}},
+//   _dirty, _synced}   (underscore fields stay on this device)
+const PROFILES_KEY = "hanzi-flashcards-profiles-v1";
+const CURRENT_KEY = "hanzi-flashcards-current-profile";
+// pre-profile versions kept one device-wide record; it is adopted by the first profile
+const LEGACY_PROGRESS_KEY = "hanzi-flashcards-progress-v1";
+const LEGACY_ACTIVITY_KEY = "hanzi-flashcards-activity-v1";
+const AVATARS = ["🐼", "🐯", "🐰", "🦊", "🐨", "🐸", "🐵", "🐶", "🐱", "🦁", "🐻", "🐧", "🦄", "🐲", "🐳", "🦋"];
 const IDLE_CAP_MS = 2 * 60 * 1000; // time on one card beyond this isn't counted as practice
 
 const $ = (id) => document.getElementById(id);
@@ -18,8 +25,10 @@ const esc = (s = "") =>
 const ZH = /[㐀-鿿]/;
 
 let DATA = { grades: [], levels: [], characters: [] };
-let progress = load(PROGRESS_KEY);
-let activity = load(ACTIVITY_KEY);
+let profiles = load(PROFILES_KEY);
+let current = profiles[localStorage.getItem(CURRENT_KEY)] || null;
+let progress = current?.progress || {};
+let activity = current?.activity || {};
 // mode: "practice" (answer 认识/不认识) or "browse" (look through cards, nothing recorded)
 const session = { mode: "practice", scope: null, title: "", deck: [], i: 0, known: [], unknown: [] };
 let detailScope = null;
@@ -32,6 +41,138 @@ function load(key) {
 function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode / quota */ }
 }
+/* ---------- profiles ---------- */
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+function useProfile(p) {
+  current = p;
+  progress = p ? (p.progress ||= {}) : {};
+  activity = p ? (p.activity ||= {}) : {};
+  p ? localStorage.setItem(CURRENT_KEY, p.id) : localStorage.removeItem(CURRENT_KEY);
+}
+function saveProfiles() { save(PROFILES_KEY, profiles); }
+/** The current profile changed: store it and schedule a sync. */
+function touch() {
+  if (!current) return;
+  current.updatedAt = Date.now();
+  current._dirty = true;
+  saveProfiles();
+  scheduleSync();
+}
+function createProfile(name, avatar) {
+  const now = Date.now();
+  const p = { id: newId(), name, avatar, voice: null, metaAt: now, createdAt: now, updatedAt: now, resetAt: 0,
+              progress: {}, activity: {}, _dirty: true, _synced: false };
+  // the very first profile inherits progress recorded before profiles existed
+  if (!Object.keys(profiles).length) {
+    p.progress = load(LEGACY_PROGRESS_KEY);
+    p.activity = load(LEGACY_ACTIVITY_KEY);
+    localStorage.removeItem(LEGACY_PROGRESS_KEY);
+    localStorage.removeItem(LEGACY_ACTIVITY_KEY);
+  }
+  profiles[p.id] = p;
+  saveProfiles();
+  return p;
+}
+const masteredOf = (p) => Object.values(p.progress || {}).filter((x) => x.last === "known").length;
+
+/* ---------- merging two copies of a profile (this device vs. the repo) ---------- */
+const dayEnd = (key) => { const [y, m, d] = key.split("-").map(Number); return new Date(y, m - 1, d + 1).getTime(); };
+function mergeProfiles(a, b) {
+  const resetAt = Math.max(a.resetAt || 0, b.resetAt || 0);
+  const progress = {};
+  for (const src of [b.progress || {}, a.progress || {}]) {
+    for (const [ch, x] of Object.entries(src)) {
+      if ((x.at || 0) < resetAt) continue;
+      if (!progress[ch] || (x.at || 0) >= (progress[ch].at || 0)) progress[ch] = x;
+    }
+  }
+  const activity = {};
+  const days = new Set([...Object.keys(a.activity || {}), ...Object.keys(b.activity || {})]);
+  for (const day of days) {
+    const x = a.activity?.[day], y = b.activity?.[day];
+    let e;
+    if (!x || !y) e = x || y;
+    else {
+      const [hi, lo] = (x.n || 0) >= (y.n || 0) ? [x, y] : [y, x];
+      e = { sec: Math.max(x.sec || 0, y.sec || 0), n: Math.max(x.n || 0, y.n || 0), t: Math.max(x.t || 0, y.t || 0),
+            r: { ...(lo.r || {}), ...(hi.r || {}) }, lv: [...new Set([...(x.lv || []), ...(y.lv || [])])] };
+    }
+    if ((e.t || dayEnd(day)) >= resetAt) activity[day] = e;
+  }
+  const meta = (a.metaAt || 0) >= (b.metaAt || 0) ? a : b;
+  return { id: a.id, name: meta.name, avatar: meta.avatar, voice: meta.voice ?? null, metaAt: meta.metaAt || 0,
+           createdAt: Math.min(a.createdAt || Infinity, b.createdAt || Infinity), updatedAt: Math.max(a.updatedAt || 0, b.updatedAt || 0),
+           resetAt, progress, activity };
+}
+const stable = (v) => (v && typeof v === "object" && !Array.isArray(v)
+  ? "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}"
+  : JSON.stringify(v));
+const shareable = (p) => Object.fromEntries(Object.entries(p).filter(([k]) => !k.startsWith("_")));
+
+/* ---------- sync with the private GitHub repo ---------- */
+const syncState = { status: "idle", at: 0, msg: "" };
+let syncTimer = null, syncing = false, syncAgain = false;
+
+function scheduleSync(delay = 15000) {
+  if (!Sync.connected) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncNow, delay);
+}
+async function syncNow() {
+  if (!Sync.connected) return;
+  if (syncing) { syncAgain = true; return; }
+  syncing = true;
+  clearTimeout(syncTimer);
+  Object.assign(syncState, { status: "syncing", msg: "" });
+  renderSyncStatus();
+  try {
+    const remote = await Sync.list();
+    const remoteIds = new Set(remote.map((r) => r.id));
+    for (const r of remote) {
+      const l = profiles[r.id];
+      if (!l) { profiles[r.id] = { ...r, _synced: true, _dirty: false }; continue; }
+      const m = mergeProfiles(l, r);
+      profiles[r.id] = { ...m, _synced: true, _dirty: stable(m) !== stable(shareable(r)) };
+    }
+    for (const [id, l] of Object.entries(profiles)) {
+      if (remoteIds.has(id)) continue;
+      if (l._synced) delete profiles[id];          // deleted on another device
+      else l._dirty = true;                        // new here: upload
+    }
+    for (const p of Object.values(profiles)) {
+      if (!p._dirty) continue;
+      if ((await Sync.put(shareable(p))) === "conflict") {
+        const r = await Sync.get(p.id);            // changed elsewhere meanwhile: merge and retry once
+        if (r) Object.assign(p, mergeProfiles(p, r));
+        if ((await Sync.put(shareable(p))) === "conflict") throw new Sync.SyncError("Couldn't save — please try again");
+      }
+      p._dirty = false;
+      p._synced = true;
+    }
+    saveProfiles();
+    useProfile(current && profiles[current.id] ? profiles[current.id] : null);
+    Object.assign(syncState, { status: "ok", at: Date.now() });
+    refreshAfterSync();
+  } catch (e) {
+    saveProfiles();
+    Object.assign(syncState, { status: "error", msg: e.message || String(e) });
+  } finally {
+    syncing = false;
+    renderSyncStatus();
+    if (syncAgain) { syncAgain = false; scheduleSync(1000); }
+  }
+}
+function refreshAfterSync() {
+  renderProfileChip();
+  const active = document.querySelector(".screen.active")?.id;
+  if (!current) return showProfiles();
+  if (active === "home") renderHome();
+  else if (active === "levels") renderLevels();
+  else if (active === "stats") { renderStats(); renderVoices(); }
+  else if (active === "profiles") renderProfiles();
+}
+
 const isMastered = (ch) => progress[ch]?.last === "known";
 const status = (ch) => (!progress[ch] ? "new" : isMastered(ch) ? "mastered" : "missed");
 
@@ -70,20 +211,23 @@ const dayKey = (d = new Date()) =>
 let lastTick = null;
 
 function today() {
-  return (activity[dayKey()] ||= { sec: 0, n: 0, r: {}, lv: [] });
+  return (activity[dayKey()] ||= { sec: 0, n: 0, t: Date.now(), r: {}, lv: [] });
 }
 function startClock() { lastTick = Date.now(); }
 function tick() {
   const now = Date.now();
   if (lastTick !== null) today().sec += Math.min(now - lastTick, IDLE_CAP_MS) / 1000;
   lastTick = now;
-  save(ACTIVITY_KEY, activity);
+  today().t = now;
+  touch();
 }
 function stopClock() {
   if (lastTick !== null) tick();
   lastTick = null;
 }
 document.addEventListener("visibilitychange", () => {
+  if (document.hidden) syncNow();
+  else scheduleSync(500);                                  // back in the app: pick up other devices' changes
   if (!$("study").classList.contains("active") || session.mode !== "practice") return;
   document.hidden ? stopClock() : startClock();
 });
@@ -94,7 +238,6 @@ function record(c, knew) {
   p.last = knew ? "known" : "unknown";
   p.at = Date.now();
   progress[c.char] = p;
-  save(PROGRESS_KEY, progress);
 
   const d = today();
   d.n++;
@@ -143,11 +286,17 @@ function rubyHTML(text, py, hlTerm) {
 }
 
 /* ---------- navigation ---------- */
-const TAB_OF = { home: "home", levels: "levels", detail: "levels", study: "levels", done: "levels", stats: "stats" };
+const TAB_OF = { home: "home", levels: "levels", detail: "levels", study: "levels", done: "levels", stats: "stats", profiles: "profiles" };
 function show(screenId) {
+  if (!current && screenId !== "profiles") {                          // everything else needs a profile
+    screenId = "profiles";
+    editing = Object.keys(profiles).length ? null : "new";
+    renderProfiles();
+  }
   if ($("study").classList.contains("active") && screenId !== "study") {
     stopClock();
     stopAudio();
+    scheduleSync(1500);                                                // practice ended: save soon
   }
   document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === screenId));
   document.querySelectorAll("[data-nav]").forEach((b) => b.classList.toggle("current", b.dataset.nav === TAB_OF[screenId]));
@@ -161,6 +310,7 @@ const go = {
   },
   levels: () => { renderLevels(); show("levels"); },
   stats: () => { renderStats(); renderVoices(); show("stats"); },
+  profiles: () => showProfiles(),
   detail: (scope) => { renderDetail(scope); show("detail"); },
 };
 
@@ -175,7 +325,7 @@ function stopAudio() {
 // The chosen voice id (one of DATA.voices).
 function voiceId() {
   const ids = (DATA.voices || []).map((x) => x.id);
-  const v = localStorage.getItem(VOICE_KEY);
+  const v = current?.voice;
   return ids.includes(v) ? v : ids[0];
 }
 // Play a clip in the chosen voice; if that clip is missing, try the other voices.
@@ -271,6 +421,117 @@ function moveMonth(delta) {
   cal.m = d.getMonth();
   renderCalendar();
   renderHomeStats();
+}
+
+/* ---------- Profiles: who's practicing? + sync settings ---------- */
+let editing = null;   // profile id being edited, "new", or null
+
+function renderProfileChip() {
+  $("profile-chip").innerHTML = current
+    ? `<span class="pc-avatar">${esc(current.avatar)}</span><span class="pc-name">${esc(current.name)}</span>`
+    : `<span class="pc-avatar">👤</span>`;
+}
+
+function showProfiles() {
+  editing = Object.keys(profiles).length ? null : "new";
+  renderProfiles();
+  show("profiles");
+}
+
+function renderProfiles() {
+  const list = Object.values(profiles).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  $("profiles-sub").textContent = list.length
+    ? "Tap your name to start. Each profile keeps its own progress."
+    : "Create a profile to start practicing.";
+  $("profile-grid").innerHTML = list.map((p) => `
+    <div class="profile-card ${current?.id === p.id ? "current" : ""}">
+      <button type="button" class="pf-pick" data-pick="${esc(p.id)}">
+        <span class="pf-avatar">${esc(p.avatar)}</span>
+        <span class="pf-name">${esc(p.name)}</span>
+        <span class="pf-stat">⭐ ${masteredOf(p)} mastered</span>
+      </button>
+      <button type="button" class="pf-edit" data-edit="${esc(p.id)}" aria-label="Edit ${esc(p.name)}">✎</button>
+    </div>`).join("") +
+    `<button type="button" class="profile-card pf-new" data-new><span class="pf-avatar">＋</span><span class="pf-name">New profile</span></button>`;
+
+  const form = $("profile-form");
+  form.hidden = !editing;
+  if (editing) {
+    const p = editing === "new" ? null : profiles[editing];
+    $("pf-title").textContent = p ? `Edit ${p.name}` : "New profile 新建";
+    $("pf-name").value = p?.name || "";
+    const used = new Set(list.map((x) => x.avatar));
+    form.dataset.avatar = p?.avatar || AVATARS.find((a) => !used.has(a)) || AVATARS[0];
+    $("pf-avatars").innerHTML = AVATARS.map((a) =>
+      `<button type="button" class="av ${a === form.dataset.avatar ? "on" : ""}" data-av="${a}">${a}</button>`).join("");
+    $("pf-delete").hidden = !p;
+    $("pf-cancel").hidden = !list.length;
+  }
+  renderSyncCard();
+}
+
+function renderSyncCard() {
+  const card = $("sync-card");
+  if (!Sync.connected) {
+    card.innerHTML = `
+      <h3>☁️ Sync across devices</h3>
+      <p class="sub">Save profiles to your private GitHub repo, so progress follows each learner to every device.</p>
+      <label class="field">Repository<input id="sync-repo" value="askming/chinese-flashcards-data" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      <label class="field">Access token<input id="sync-token" type="password" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      <button type="button" id="sync-connect" class="btn btn-blue">Connect</button>
+      <p id="sync-msg" class="sync-msg"></p>
+      <details class="howto"><summary>How to get a token</summary><ol>
+        <li>On GitHub (signed in as the repo owner) open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Settings → Fine-grained tokens → Generate new token</a>.</li>
+        <li>Name it e.g. <em>汉字 flashcards</em>, choose an expiration.</li>
+        <li><strong>Repository access:</strong> Only select repositories → <code>chinese-flashcards-data</code>.</li>
+        <li><strong>Permissions → Repository → Contents:</strong> Read and write.</li>
+        <li>Generate, copy, and paste it above. On other devices, use “Set up another device” instead of retyping it.</li>
+      </ol></details>`;
+  } else {
+    card.innerHTML = `
+      <h3>☁️ Synced with <code>${esc(Sync.repoName)}</code></h3>
+      <p id="sync-msg" class="sync-msg"></p>
+      <div class="sync-btns">
+        <button type="button" id="sync-now" class="chip">⟳ Sync now</button>
+        <button type="button" id="sync-share" class="chip">📲 Set up another device</button>
+        <button type="button" id="sync-disconnect" class="chip">Disconnect</button>
+      </div>
+      <p class="sub small">The setup link contains this device's access key — only send it to your own devices (e.g. AirDrop).</p>`;
+  }
+  renderSyncStatus();
+}
+
+function renderSyncStatus() {
+  const el = document.getElementById("sync-msg");
+  if (!el || !Sync.connected) return;
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : new Date(t).toLocaleString(); };
+  el.className = `sync-msg ${syncState.status}`;
+  el.textContent = syncState.status === "syncing" ? "Syncing…"
+    : syncState.status === "error" ? `⚠ ${syncState.msg}`
+    : syncState.at ? `✓ Synced ${ago(syncState.at)}` : "Not synced yet";
+}
+
+async function connectSync(repo, token) {
+  const msg = $("sync-msg");
+  if (msg) { msg.className = "sync-msg syncing"; msg.textContent = "Checking…"; }
+  try {
+    await Sync.connect(repo, token);
+    renderSyncCard();
+    await syncNow();
+    renderProfiles();
+  } catch (e) {
+    if (msg) { msg.className = "sync-msg error"; msg.textContent = `⚠ ${e.message}`; }
+  }
+}
+
+async function shareSetupLink() {
+  const url = Sync.setupLink();
+  try {
+    if (navigator.share) await navigator.share({ title: "汉字 Flashcards setup", url });
+    else { await navigator.clipboard.writeText(url); alert("Setup link copied. Open it on the other device."); }
+  } catch (e) {
+    if (e.name !== "AbortError") prompt("Copy this setup link and open it on the other device:", url);
+  }
 }
 
 /* ---------- Levels: grades → units ---------- */
@@ -559,9 +820,71 @@ function wire() {
     startSession({ type: "list", chars: todo, title: `${titleOf(scope)} · 未掌握` });
   });
 
+  // Profiles
+  $("profile-grid").addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-pick]"), edit = e.target.closest("[data-edit]");
+    if (pick) { useProfile(profiles[pick.dataset.pick]); renderProfileChip(); go.home(); }
+    else if (edit) { editing = edit.dataset.edit; renderProfiles(); $("profile-form").scrollIntoView({ behavior: "smooth" }); }
+    else if (e.target.closest("[data-new]")) { editing = "new"; renderProfiles(); $("pf-name").focus(); }
+  });
+  $("pf-avatars").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-av]");
+    if (!b) return;
+    $("profile-form").dataset.avatar = b.dataset.av;
+    document.querySelectorAll("#pf-avatars .av").forEach((x) => x.classList.toggle("on", x === b));
+  });
+  $("profile-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = $("pf-name").value.trim().slice(0, 20);
+    if (!name) return $("pf-name").focus();
+    const avatar = $("profile-form").dataset.avatar;
+    if (editing === "new") {
+      useProfile(createProfile(name, avatar));
+      editing = null;
+      touch();
+      renderProfileChip();
+      return go.home();
+    }
+    const p = profiles[editing];
+    Object.assign(p, { name, avatar, metaAt: Date.now() });
+    if (current?.id === p.id) useProfile(p);
+    editing = null;
+    p.updatedAt = Date.now(); p._dirty = true; saveProfiles(); scheduleSync(500);
+    renderProfileChip();
+    renderProfiles();
+  });
+  $("pf-cancel").onclick = () => { editing = null; renderProfiles(); };
+  $("pf-delete").onclick = async () => {
+    const p = profiles[editing];
+    if (!p || !confirm(`Delete ${p.name}'s profile and all of its progress? This can't be undone.`)) return;
+    delete profiles[p.id];
+    saveProfiles();
+    if (current?.id === p.id) useProfile(null);
+    editing = null;
+    renderProfileChip();
+    renderProfiles();
+    if (Sync.connected && p._synced) {
+      try { await Sync.remove(p.id); } catch (err) { Object.assign(syncState, { status: "error", msg: err.message }); renderSyncStatus(); }
+    }
+  };
+  $("sync-card").addEventListener("click", (e) => {
+    const id = e.target.closest("button")?.id;
+    if (id === "sync-connect") connectSync($("sync-repo").value, $("sync-token").value);
+    else if (id === "sync-now") syncNow();
+    else if (id === "sync-share") shareSetupLink();
+    else if (id === "sync-disconnect" && confirm("Disconnect this device? Profiles stay on this device, but stop syncing.")) {
+      Sync.disconnect();
+      renderSyncCard();
+    }
+  });
+
   // Voice settings
   $("voice-list").addEventListener("change", (e) => {
-    if (e.target.name === "voice") localStorage.setItem(VOICE_KEY, e.target.value);
+    if (e.target.name === "voice" && current) {
+      current.voice = e.target.value;
+      current.metaAt = Date.now();
+      touch();
+    }
   });
   $("voice-list").addEventListener("click", (e) => {
     const b = e.target.closest("[data-sample]");
@@ -598,9 +921,12 @@ function wire() {
   $("btn-again").onclick = () => startSession(session.scope);
   $("btn-to-levels").onclick = go.levels;
   $("reset-progress").onclick = () => {
-    if (confirm("Clear all saved progress and practice history?")) {
-      progress = {}; activity = {};
-      save(PROGRESS_KEY, progress); save(ACTIVITY_KEY, activity);
+    if (current && confirm(`Clear all of ${current.name}'s progress and practice history?`)) {
+      current.resetAt = Date.now();
+      current.progress = {};
+      current.activity = {};
+      useProfile(current);
+      touch();
       renderStats();
     }
   };
@@ -639,7 +965,15 @@ async function init() {
     $("load-error").hidden = false;
     $("load-error").textContent = `Couldn't load ${DATA_URL} (${err.message}).`;
   }
-  go.home();
+  renderProfileChip();
+  const link = Sync.takeSetupLink();
+  if (link) {
+    showProfiles();
+    await connectSync(`${link.owner}/${link.repo}`, link.token);
+  } else if (Sync.connected) {
+    syncNow();                                   // pick up other devices' changes in the background
+  }
+  current ? go.home() : showProfiles();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 

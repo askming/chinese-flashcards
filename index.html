@@ -14,6 +14,7 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script src="vendor/hanzi-writer.min.js" defer></script>
+  <script src="sync.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -21,9 +22,28 @@
     <button type="button" data-nav="home">Home</button>
     <button type="button" data-nav="levels">Practice</button>
     <button type="button" data-nav="stats">Progress</button>
+    <button type="button" id="profile-chip" class="profile-chip" data-nav="profiles" aria-label="Switch profile"></button>
   </nav>
 
   <main>
+    <!-- Who's practicing? -->
+    <section id="profiles" class="screen">
+      <h2>Who's practicing? 谁来练习？</h2>
+      <p id="profiles-sub" class="sub"></p>
+      <div id="profile-grid" class="profile-grid"></div>
+      <form id="profile-form" class="profile-form" hidden>
+        <h3 id="pf-title"></h3>
+        <input id="pf-name" class="pf-input" maxlength="20" placeholder="Name 名字" autocomplete="off">
+        <div id="pf-avatars" class="avatar-pick"></div>
+        <div class="form-row">
+          <button type="submit" class="btn btn-blue">Save</button>
+          <button type="button" id="pf-cancel" class="btn btn-secondary">Cancel</button>
+        </div>
+        <button type="button" id="pf-delete" class="link-btn danger" hidden>Delete this profile</button>
+      </form>
+      <div id="sync-card" class="sync-card"></div>
+    </section>
+
     <!-- Home: greeting, practice calendar, stats -->
     <section id="home" class="screen">
       <h1 class="hello">Welcome! It's time to boost your Chinese!</h1>

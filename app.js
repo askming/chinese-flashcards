@@ -177,28 +177,37 @@ const isMastered = (ch) => progress[ch]?.last === "known";
 const status = (ch) => (!progress[ch] ? "new" : isMastered(ch) ? "mastered" : "missed");
 
 /* ---------- scopes: what a grid / session covers ---------- */
-// {type: "unit", id} | {type: "grade", id} | {type: "random"} | {type: "list", chars, title}
+// {type: "series", id} | {type: "grade", id} | {type: "book", grade, book} | {type: "unit", id}
+// | {type: "random"} | {type: "list", chars, title}
 const gradeOf = (gid) => DATA.grades.find((g) => g.id === gid);
 const unitOf = (uid) => DATA.levels.find((l) => l.id === uid);
-function charsOf(scope) {
+const seriesOf = (sid) => DATA.series.find((x) => x.id === sid);
+const seriesShort = (sid) => (DATA.series.length > 1 ? (seriesOf(sid)?.name || "").split(" ·")[0] + " " : "");
+function unitsOf(scope) {
   switch (scope.type) {
-    case "unit": return DATA.characters.filter((c) => c.level === scope.id);
-    case "grade": {
-      const units = new Set(DATA.levels.filter((l) => l.grade === scope.id).map((l) => l.id));
-      return DATA.characters.filter((c) => units.has(c.level));
-    }
-    case "random": return DATA.characters;
-    default: return scope.chars;
+    case "series": return DATA.levels.filter((l) => l.series === scope.id);
+    case "grade": return DATA.levels.filter((l) => l.grade === scope.id);
+    case "book": return DATA.levels.filter((l) => l.grade === scope.grade && l.book === scope.book);
+    case "unit": return DATA.levels.filter((l) => l.id === scope.id);
+    default: return [];
   }
+}
+function charsOf(scope) {
+  if (scope.type === "random") return DATA.characters;
+  if (scope.type === "list") return scope.chars;
+  const ids = new Set(unitsOf(scope).map((l) => l.id));
+  return DATA.characters.filter((c) => ids.has(c.level));
 }
 function titleOf(scope) {
   switch (scope.type) {
     case "unit": {
       const u = unitOf(scope.id);
       const g = u && gradeOf(u.grade);
-      return g ? `${g.name} · ${u.name}` : u?.name || scope.id;
+      return g ? `${seriesShort(u.series)}${g.name}${u.book ? " " + u.book : ""} · ${u.name}` : u?.name || scope.id;
     }
-    case "grade": return `${gradeOf(scope.id)?.name || scope.id} · All`;
+    case "book": { const g = gradeOf(scope.grade); return `${seriesShort(g?.series)}${g?.name} ${scope.book} · All`; }
+    case "grade": { const g = gradeOf(scope.id); return `${seriesShort(g?.series)}${g?.name || scope.id} · All`; }
+    case "series": return `${seriesOf(scope.id)?.name || scope.id} · All`;
     case "random": return "Random";
     default: return scope.title;
   }
@@ -534,8 +543,55 @@ async function shareSetupLink() {
   }
 }
 
-/* ---------- Levels: grades → units ---------- */
+/* ---------- folder tree: series → grade → (book) → unit ---------- */
+const OPEN_KEY = "hanzi-flashcards-open-folders";
+const openFolders = new Set(load(OPEN_KEY).keys || []);
+const saveOpen = () => save(OPEN_KEY, { keys: [...openFolders] });
+
+/** Nested <details> folders. row(scope, label, cls) renders a leaf; head(scope) renders the
+ *  extra part of a folder's summary line (counts / progress bar). */
+function folderTree(prefix, row, head) {
+  const folder = (key, label, scope, inner, depth) => `
+    <details class="folder d${depth}" data-key="${prefix}:${esc(key)}" ${openFolders.has(`${prefix}:${key}`) ? "open" : ""}>
+      <summary><span class="f-name">${esc(label)}</span>${head(scope)}<span class="f-chev">›</span></summary>
+      <div class="f-body">${inner}</div>
+    </details>`;
+  const html = DATA.series.map((sr) => {
+    const grades = DATA.grades.filter((g) => g.series === sr.id);
+    const gradesHtml = grades.map((g) => {
+      const units = DATA.levels.filter((l) => l.grade === g.id);
+      const books = [...new Set(units.map((u) => u.book).filter(Boolean))];
+      let inner;
+      if (books.length) {
+        inner = books.map((b) => {
+          const us = units.filter((u) => u.book === b);
+          const rows = us.map((u) => row({ type: "unit", id: u.id }, u.name)).join("") +
+            (us.length > 1 ? row({ type: "book", grade: g.id, book: b }, `All of ${b}`, "grade-all") : "");
+          return folder(`${g.id}:${b}`, b, { type: "book", grade: g.id, book: b }, `<ul class="unit-list">${rows}</ul>`, 3);
+        }).join("") + (books.length > 1 ? `<ul class="unit-list">${row({ type: "grade", id: g.id }, `All of ${g.name}`, "grade-all")}</ul>` : "");
+      } else {
+        inner = `<ul class="unit-list">${units.map((u) => row({ type: "unit", id: u.id }, u.name)).join("")}
+          ${units.length > 1 ? row({ type: "grade", id: g.id }, `All of ${g.name}`, "grade-all") : ""}</ul>`;
+      }
+      return folder(g.id, g.name, { type: "grade", id: g.id }, inner, 2);
+    }).join("");
+    return DATA.series.length > 1 ? folder(sr.id, sr.name, { type: "series", id: sr.id }, gradesHtml, 1) : gradesHtml;
+  }).join("");
+  return html;
+}
+function watchFolders(container) {
+  // 'toggle' doesn't bubble: listen in the capture phase
+  container.addEventListener("toggle", (e) => {
+    const key = e.target.dataset?.key;
+    if (!key) return;
+    e.target.open ? openFolders.add(key) : openFolders.delete(key);
+    saveOpen();
+  }, true);
+}
+
+/* ---------- Practice: pick material ---------- */
 function renderLevels() {
+  const counts = (scope) => { const cs = charsOf(scope); return `<span class="f-count">${masteredCount(cs)}/${cs.length}</span>`; };
   const row = (scope, name, extra = "") => {
     const chars = charsOf(scope);
     return `<li><button class="level-btn ${extra}" type="button" data-scope='${esc(JSON.stringify(scope))}'>
@@ -544,16 +600,8 @@ function renderLevels() {
         <span class="chev">›</span>
       </button></li>`;
   };
-  let html = "";
-  for (const g of DATA.grades) {
-    const units = DATA.levels.filter((l) => l.grade === g.id);
-    html += `<li class="grade-block"><h3 class="grade-head">${esc(g.name)}</h3><ul class="unit-list">
-      ${units.map((u) => row({ type: "unit", id: u.id }, u.name)).join("")}
-      ${units.length > 1 ? row({ type: "grade", id: g.id }, `All of ${g.name}`, "grade-all") : ""}
-    </ul></li>`;
-  }
-  html += row({ type: "random" }, "Random", "random");
-  $("level-list").innerHTML = html;
+  $("level-list").innerHTML = folderTree("practice", row, counts) +
+    `<ul class="unit-list random-row">${row({ type: "random" }, "Random · 全部随机", "random")}</ul>`;
 }
 
 /* ---------- character grid (all characters of a unit / grade) ---------- */
@@ -566,7 +614,10 @@ function renderDetail(scope) {
   // group by lesson within a unit, by unit within a grade
   const groups = new Map();
   for (const c of chars) {
-    const key = scope.type === "unit" ? c.lessonTitle || "" : unitOf(c.level)?.name || "";
+    const u = unitOf(c.level);
+    const key = scope.type === "unit" ? c.lessonTitle || ""
+      : scope.type === "series" ? `${gradeOf(u?.grade)?.name || ""}${u?.book ? " " + u.book : ""} · ${u?.name || ""}`
+      : scope.type === "grade" && u?.book ? `${u.book} · ${u.name}` : u?.name || "";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(c);
   }
@@ -676,7 +727,7 @@ function prev() {
 
 function viewAll() {
   const sc = session.scope;
-  sc && (sc.type === "unit" || sc.type === "grade") ? go.detail(sc) : go.levels();
+  sc && ["unit", "grade", "book", "series"].includes(sc.type) ? go.detail(sc) : go.levels();
 }
 
 /* ---------- stroke order (Hanzi Writer) ---------- */
@@ -727,25 +778,22 @@ function showDone() {
   show("done");
 }
 
-/* ---------- Summary ---------- */
+/* ---------- Progress ---------- */
 function renderStats() {
   const all = DATA.characters;
   $("stats-total").textContent = `Overall: ${masteredCount(all)}/${all.length} mastered`;
+  const pctOf = (scope) => { const cs = charsOf(scope); const m = masteredCount(cs); return [m, cs.length, cs.length ? Math.round((100 * m) / cs.length) : 0]; };
+  const barHtml = (pct) => `<span class="stat-bar"><span class="ok" style="width:${pct}%"></span><span class="no" style="width:${100 - pct}%"></span></span>`;
+  const head = (scope) => { const [m, n, pct] = pctOf(scope); return `<span class="f-count">${m}/${n} (${pct}%)</span>${barHtml(pct)}`; };
   const bar = (scope, name, cls = "") => {
-    const chars = charsOf(scope);
-    const m = masteredCount(chars);
-    const pct = chars.length ? Math.round((100 * m) / chars.length) : 0;
-    return `<li><button class="stat-row ${cls}" type="button" data-scope='${esc(JSON.stringify(scope))}' ${m === chars.length ? "disabled" : ""}>
+    const [m, n, pct] = pctOf(scope);
+    return `<li><button class="stat-row ${cls}" type="button" data-scope='${esc(JSON.stringify(scope))}' ${m === n ? "disabled" : ""}>
         <span class="stat-name">${esc(name)}</span>
-        <span class="stat-bar"><span class="ok" style="width:${pct}%"></span><span class="no" style="width:${100 - pct}%"></span></span>
-        <span class="stat-num">${m}/${chars.length} (${pct}%)</span>
+        ${barHtml(pct)}
+        <span class="stat-num">${m}/${n} (${pct}%)</span>
       </button></li>`;
   };
-  $("stats-list").innerHTML = DATA.grades.map((g) => {
-    const units = DATA.levels.filter((l) => l.grade === g.id);
-    return `<li class="grade-block">${bar({ type: "grade", id: g.id }, g.name, "grade-row")}
-      <ul class="unit-list">${units.map((u) => bar({ type: "unit", id: u.id }, u.name)).join("")}</ul></li>`;
-  }).join("");
+  $("stats-list").innerHTML = folderTree("progress", bar, head);
 }
 
 function renderVoices() {
@@ -810,6 +858,8 @@ function wire() {
     if (b) browse(detailScope, charsOf(detailScope), Number(b.dataset.idx));
   });
   $("btn-start").onclick = () => startSession(detailScope);
+  watchFolders($("level-list"));
+  watchFolders($("stats-list"));
 
   // Summary
   $("stats-list").addEventListener("click", (e) => {
@@ -957,6 +1007,9 @@ async function init() {
     if (!DATA.levels?.length) {
       DATA.levels = [...new Set(DATA.characters.map((c) => c.level))].map((id) => ({ id, name: `Level ${id}` }));
     }
+    if (!DATA.series?.length) DATA.series = [{ id: "bl", name: "Materials" }];
+    DATA.grades?.forEach((g) => (g.series ||= DATA.series[0].id));
+    DATA.levels?.forEach((l) => (l.series ||= gradeOf(l.grade)?.series || DATA.series[0].id));
     if (!DATA.grades?.length) {
       DATA.grades = [{ id: "_", name: "Levels" }];
       DATA.levels.forEach((l) => (l.grade ||= "_"));

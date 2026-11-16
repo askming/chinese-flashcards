@@ -312,3 +312,24 @@ h2.center { text-align: center; }
 .howto summary { color: var(--blue); cursor: pointer; }
 .howto ol { padding-left: 20px; line-height: 1.5; }
 code { font-size: .9em; background: var(--bg); padding: 1px 5px; border-radius: 6px; }
+
+/* ---------- folders (Practice / Progress) ---------- */
+.level-list, .stats-list { display: grid; gap: 10px; }
+.folder { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.folder .folder { border-radius: 12px; background: #fff; }
+.folder > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; flex-wrap: wrap; }
+.folder > summary::-webkit-details-marker { display: none; }
+.folder > summary:active { background: var(--bg); }
+.f-name { font-weight: 800; font-size: 18px; flex: 1; }
+.folder.d2 > summary .f-name { font-size: 17px; font-weight: 700; }
+.folder.d3 > summary .f-name { font-size: 16px; font-weight: 700; }
+.f-count { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.f-chev { color: var(--muted); font-size: 22px; transition: transform .2s; transform: rotate(0deg); }
+.folder[open] > summary .f-chev { transform: rotate(90deg); }
+.folder > summary .stat-bar { flex-basis: 100%; order: 5; height: 8px; }
+.f-body { padding: 0 10px 10px; display: grid; gap: 8px; }
+.folder.d1 > .f-body { padding: 0 10px 12px; }
+.f-body .unit-list { gap: 8px; }
+.f-body .level-btn, .f-body .stat-row { background: var(--paper); }
+.folder .folder .level-btn, .folder .folder .stat-row { background: var(--paper); }
+.random-row { margin-top: 4px; }

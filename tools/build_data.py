@@ -195,6 +195,21 @@ def pick_sentence(ch, py, words, sentences, overrides):
     return best
 
 
+_seg_cache = {}
+
+
+def text_words(text):
+    """2–4 character words of a text, in order (needs jieba; returns [] without it)."""
+    if text not in _seg_cache:
+        try:
+            import jieba, logging
+            jieba.setLogLevel(logging.WARNING)
+            _seg_cache[text] = list(dict.fromkeys(w for w in jieba.cut(text) if 2 <= len(w) <= 4 and all(ZH.match(c) for c in w)))
+        except ImportError:
+            _seg_cache[text] = []
+    return _seg_cache[text]
+
+
 def parse_chars(spec):
     out = []
     for tok in spec.split():
@@ -224,6 +239,14 @@ def char_speech_text(ch, py):
     return ch
 
 
+# Material series, in the order shown in the app. Sources without "series" are "bl".
+SERIES = [
+    {"id": "bl", "name": "Biling Chinese"},
+    {"id": "rj", "name": "人教版 · 部编教材"},
+]
+BOOKS = {"a": "上册", "b": "下册"}
+
+
 def grade_name(gid):
     m = re.match(r"G(\d+)$", gid)
     return f"Grade {m.group(1)}" if m else gid
@@ -231,19 +254,44 @@ def grade_name(gid):
 
 def build(source_paths, report=False, check=False):
     grades, levels, characters, issues, speech = {}, [], [], [], {}
-    sources = sorted((json.load(open(p)) for p in source_paths), key=lambda s: (s["grade"], int(s["unit"])))
+    order = {s["id"]: i for i, s in enumerate(SERIES)}
+    sources = sorted((json.load(open(p)) for p in source_paths),
+                     key=lambda s: (order.get(s.get("series", "bl"), 99), s["grade"], s.get("book", ""), int(s["unit"])))
+    # fallback word pool: every official word list of the same series
+    pool = {}
+    for src in sources:
+        bag = pool.setdefault(src.get("series", "bl"), [])
+        for L in src["lessons"]:
+            bag.extend(L.get("vocab", []))
+            for sub in L["subLessons"]:
+                bag.extend(sub.get("readWords", []))
+    pool = {k: list(dict.fromkeys(v)) for k, v in pool.items()}
+
     for src in sources:
         overrides = src.get("overrides", {})
-        gid = src["grade"]
-        grades.setdefault(gid, {"id": gid, "name": src.get("gradeName") or grade_name(gid)})
-        level_id = f"{gid}-U{src['unit']}"
-        levels.append({"id": level_id, "grade": gid, "name": src["name"].split(" ", 1)[-1]})
+        series = src.get("series", "bl")
+        gid = src["grade"] if series == "bl" else f"{series.upper()}-{src['grade']}"
+        grades.setdefault(gid, {"id": gid, "series": series, "name": src.get("gradeName") or grade_name(src["grade"])})
+        if series == "bl":
+            level_id = f"{src['grade']}-U{src['unit']}"
+            level = {"id": level_id, "series": series, "grade": gid, "name": src["name"].split(" ", 1)[-1]}
+        else:
+            level_id = f"{gid}{src.get('book', '').upper()}-U{src['unit']}"
+            level = {"id": level_id, "series": series, "grade": gid, "book": BOOKS.get(src.get("book"), ""),
+                     "name": src["name"].split(" ")[-1]}
+        levels.append(level)
         for L in src["lessons"]:
             sentences = split_sentences(L["text"])
             for sub in L["subLessons"]:
                 for kind in ("write", "recognize"):
                     for ch, py in parse_chars(sub[kind]):
                         cand = [w for w in sub["readWords"] + L["vocab"] if ch in w and w != ch]
+                        if series != "bl" and len(cand) < 2:
+                            # few words in this lesson/unit: borrow from the series' other official word lists,
+                            # then real words from the lesson text (segmented with jieba)
+                            cand += [w for w in pool.get(series, []) if ch in w and w != ch and len(w) <= 4][:4]
+                            if len(cand) < 2:
+                                cand += [w for w in text_words(L["text"]) if ch in w and w != ch][:3]
                         words = list(dict.fromkeys(cand))[:MAX_WORDS]
                         sent = pick_sentence(ch, py, words, sentences, overrides)
                         if not sent and ch in L["title"]:
@@ -271,7 +319,8 @@ def build(source_paths, report=False, check=False):
                         if not sent:
                             issues.append(f"{ch}: no sentence found in lesson text")
 
-    out = {"grades": list(grades.values()), "levels": levels, "characters": characters,
+    used = {g["series"] for g in grades.values()}
+    out = {"series": [s for s in SERIES if s["id"] in used], "grades": list(grades.values()), "levels": levels, "characters": characters,
            "voices": [{"id": v["id"], "name": v["name"]} for v in VOICES]}
     if check:   # proofreading only: write nothing
         print(f"[check] {len(characters)} characters in {len(levels)} unit(s)")
@@ -282,6 +331,7 @@ def build(source_paths, report=False, check=False):
         return
     with open(os.path.join(ROOT, "data", "characters.json"), "w") as f:
         f.write('{\n  "voices": ' + json.dumps(out["voices"], ensure_ascii=False))
+        f.write(',\n  "series": ' + json.dumps(out["series"], ensure_ascii=False))
         f.write(',\n  "grades": ' + json.dumps(out["grades"], ensure_ascii=False))
         f.write(',\n  "levels": [\n' + ",\n".join("    " + json.dumps(l, ensure_ascii=False) for l in levels))
         f.write('\n  ],\n  "characters": [\n' + ",\n".join("    " + json.dumps(c, ensure_ascii=False) for c in characters) + "\n  ]\n}\n")

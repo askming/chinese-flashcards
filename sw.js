@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION when app files change so phones pick up the update.
-const VERSION = "v9";
+const VERSION = "v10";
 const SHELL = `shell-${VERSION}`;
 const STROKES = "strokes-v1"; // stroke-order data fetched from jsDelivr, kept across versions
 const SHELL_FILES = [
